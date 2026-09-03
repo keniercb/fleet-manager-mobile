@@ -30,3 +30,18 @@ Stage Summary:
 - RF-01.1..RF-01.6 implementados y verificados en browser.
 - Artefactos: flutter_app/ (módulo Dart), src/components/rf01/* (demo), src/app/api/files/route.ts, src/lib/dart-highlight.ts, src/app/page.tsx.
 - Pendiente para siguiente fase: RF-02 Recorridos; confirmar con backend R1 (Bearer) y nombres reales de roles para UserCapabilities.
+---
+Task ID: 3
+Agent: Z.ai Code (main)
+Task: Subir todos los cambios del proyecto al repositorio https://github.com/keniercb/fleet-manager-mobile.git
+
+Work Log:
+- Verificado estado local: rama main, working tree limpio, 132 archivos trackeados (36 de flutter_app/). Todo el trabajo de RF-01 ya estaba commiteado.
+- Verificado conectividad: GitHub accesible (HTTP 200). git ls-remote al repo remoto responde exit 0 sin refs → el repo existe pero está vacío (recién creado).
+- Búsqueda exhaustiva de credenciales: sin PAT en env vars, sin ~/.git-credentials, sin ~/.netrc, sin ~/.ssh, sin gh CLI, sin credential helper. Solo DATABASE_URL en .env.
+- Configurado remote: git remote add origin https://github.com/keniercb/fleet-manager-mobile.git
+- Intento de push falló con: "fatal: could not read Username for 'https://github.com'" → bloqueado por falta de autenticación.
+
+Stage Summary:
+- BLOQUEADO: se necesita un Personal Access Token (PAT) de GitHub con permisos de escritura (scope repo) para completar el push.
+- Remote origin ya configurado; push pendiente de credenciales. Una vez entregado el token: git push -u origin main.
