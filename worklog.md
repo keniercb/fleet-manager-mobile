@@ -13,3 +13,20 @@ Stage Summary:
 - Artefacto entregado: /home/z/my-project/plan-app-registro-recorridos-flutter.md
 - Decisión clave: núcleo de la APK = módulo Recorridos con abastecimiento; offline-first vía Drift outbox; DTOs generados desde api-docs.json; servidor = fuente de verdad del odómetro/consumo.
 - 8 riesgos de API documentados con mitigación (R1-R8) para acordar con el backend.
+---
+Task ID: 2
+Agent: Z.ai Code (main)
+Task: Implementar RF-01 · Autenticación y sesión (Fase 1 del plan Flutter).
+
+Work Log:
+- Módulo Flutter completo en flutter_app/ (33 ficheros): core (AppConfig con dart-define, Failures tipados con parser tolerante RFC-7807/Spring R2, Result Either, DioClient, AuthInterceptor Bearer+401→bus, SessionExpiredBus, SecureTokenStorage, Validators) + feature auth (entidades User/Role/Empresa/UserCapabilities, AuthRepository contrato+impl, DTOs exactos de api-docs.json, 4 use cases, SessionController con máquina de estados sellada + part file, LoginController, ChangePasswordController, 5 screens: splash/login/home/profile/change_password, widgets AppTextField/FlowBanner, go_router con guard por sesión).
+- Resolución de dependencia circular interceptor↔sesión vía SessionExpiredBus (StreamController broadcast).
+- README de integración: pubspec, android manifest (INTERNET, cleartext solo debug), comandos con --dart-define, checklist Gate F1, decisiones R1/R2/R3.
+- Demo web Next.js en / : mockup de teléfono con máquina de estados espejo (splash→login→home→perfil→cambio contraseña), log de trazas API, escenario offline persistente, forzar 401, explorador de código Dart con resaltador propio (src/lib/dart-highlight.ts) servido vía /api/files, panel de especificación con checklist Gate F1.
+- Correcciones durante desarrollo: lucide icon inexistente (Mobile→Smartphone), regla react-hooks/set-state-in-effect (lectura localStorage en callback del timer), persistencia del escenario offline en localStorage, refs obsoletos del navegador.
+- Verificación Agent Browser: login incorrecto (401→banner), login correcto (Home+roles), cambio de contraseña (400 con actual incorrecta, éxito y persistencia), forzar 401 (banner «Tu sesión ha expirado»+token limpio), offline (SessionBootstrapError con Reintentar, token preservado), reintento→Home, pestañas Código/Especificación, móvil 390px correcto, footer pegado al final del documento, consola sin errores, lint limpio.
+
+Stage Summary:
+- RF-01.1..RF-01.6 implementados y verificados en browser.
+- Artefactos: flutter_app/ (módulo Dart), src/components/rf01/* (demo), src/app/api/files/route.ts, src/lib/dart-highlight.ts, src/app/page.tsx.
+- Pendiente para siguiente fase: RF-02 Recorridos; confirmar con backend R1 (Bearer) y nombres reales de roles para UserCapabilities.
