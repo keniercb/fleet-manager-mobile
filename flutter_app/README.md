@@ -1,9 +1,11 @@
-# Módulo RF-01 · Autenticación y sesión — APK Registro de Recorridos
+# Módulo RF-01 + RF-02 — APK Registro de Recorridos
 
-Implementación de la **Fase 1** del plan (`plan-app-registro-recorridos-flutter.md`):
-login JWT, bootstrap de sesión, logout, cambio de contraseña y manejo de sesión
-expirada, siguiendo la Clean Architecture acordada (Riverpod + Dio + go_router +
-flutter_secure_storage).
+Implementación de las **Fases 1–2** del plan (`plan-app-registro-recorridos-flutter.md`):
+
+- **RF-01 · Autenticación y sesión**: login JWT, bootstrap, logout, cambio de contraseña, sesión expirada.
+- **RF-02 · Registro de recorridos (núcleo del negocio)**: lista paginada, formulario con abastecimiento opcional, detalle con calculados del servidor, edición/borrado y **outbox offline v1** (Fase 2.5).
+
+Arquitectura: Clean Architecture con Riverpod + Dio + go_router + flutter_secure_storage.
 
 ## Requisitos cubiertos
 
@@ -15,6 +17,19 @@ flutter_secure_storage).
 | **RF-01.4** Logout | `POST /api/auth/logout` best-effort + limpieza local garantizada | `auth_repository_impl.dart`, `logout.dart` |
 | **RF-01.5** Cambio de contraseña | `PUT /api/auth/cambiar-password` + validaciones cliente y use case | `change_password_controller.dart`, `change_password.dart` |
 | **RF-01.6** Sesión expirada | `AuthInterceptor` detecta 401 → bus → estado `expired` → redirect a login con banner | `auth_interceptor.dart`, `session_expired_bus.dart`, `flow_banner.dart` |
+
+### RF-02 · Registro de recorridos
+
+| Requisito | Implementación | Archivos clave |
+|---|---|---|
+| **RF-02.1** Formulario de registro | Vehículo/chofer/fecha (default hoy)/km; pre-selección heurística si hay un único vehículo (R9) | `recorrido_form_controller.dart`, `recorrido_form_screen.dart` |
+| **RF-02.2** Abastecimiento opcional | Bloque colapsable: litros, chip (≤50), lugar (≤100), tarjeta con saldo, importe | `recorrido_form_controller.dart` |
+| **RF-02.3** Validaciones de cliente | km≥1, litros≥0, fecha≤hoy, longitudes máximas + advertencia de odómetro (R7) | `validators.dart`, `odometro_regla.dart` |
+| **RF-02.4** Listado paginado | Paginación infinita, pull-to-refresh, `sort=fecha&sortOrder=DESC`, estados vacío/error | `recorridos_list_controller.dart`, `recorridos_list_screen.dart` |
+| **RF-02.5** Detalle con calculados | Odómetro/combustible inicial y consumo del servidor + auditoría | `recorrido_detail_controller.dart`, `recorrido_detail_screen.dart` |
+| **RF-02.6** Edición y borrado | PUT/DELETE con confirmación; borrado sólo para roles de gestión (403 protegido) | `recorrido_form_screen.dart`, `recorrido_detail_screen.dart` |
+| **RF-02.7** Historial filtrable | Filtro por vehículo (`/vehiculo/{id}`) + búsqueda rápida matrícula/chofer client-side | `recorridos_list_controller.dart` |
+| **Fase 2.5** Outbox + SyncManager v1 | Creación sin red → cola FIFO cifrada → sync automático al refrescar con red / manual | `outbox_store.dart`, `outbox_controller.dart` |
 
 ## Estructura
 
@@ -31,22 +46,41 @@ lib/
 │   ├── network/auth_interceptor.dart  # Bearer + 401 → bus (RF-01.6)
 │   ├── network/session_expired_bus.dart
 │   ├── storage/token_storage.dart     # RF-01.2 (Keystore/Keychain + caché)
-│   └── utils/validators.dart
-└── features/auth/
-    ├── auth_providers.dart           # composition root (providers)
+│   ├── utils/page_params.dart    # paginación Spring encapsulada (R5)
+│   └── utils/validators.dart     # + validaciones RF-02.3
+├── features/auth/
+│   ├── auth_providers.dart           # composition root (providers)
+│   ├── domain/
+│   │   ├── entities/ (user.dart, auth_session.dart)
+│   │   ├── repositories/auth_repository.dart   # contrato
+│   │   └── usecases/ (login, logout, get_current_user, change_password)
+│   ├── data/
+│   │   ├── api/auth_api.dart
+│   │   ├── dto/auth_dtos.dart        # contratos exactos de api-docs.json
+│   │   └── repositories/auth_repository_impl.dart
+│   └── presentation/
+│       ├── controllers/ (session_controller + session_state,
+│       │                 login_controller, change_password_controller)
+│       ├── screens/ (splash, login, home, profile, change_password)
+│       └── widgets/ (app_text_field, flow_banner)
+└── features/recorridos/            # ★ RF-02 núcleo del negocio
+    ├── recorridos_providers.dart       # composition root
     ├── domain/
-    │   ├── entities/ (user.dart, auth_session.dart)
-    │   ├── repositories/auth_repository.dart   # contrato
-    │   └── usecases/ (login, logout, get_current_user, change_password)
+    │   ├── entities/ (recorrido.dart, flota.dart, page.dart)
+    │   ├── repositories/ (recorridos_repository.dart, flota_repository.dart)
+    │   ├── services/odometro_regla.dart      # advertencia R7 (pura)
+    │   └── usecases/ (listar, obtener, crear, actualizar, eliminar,
+    │                 cargar_datos_formulario)
     ├── data/
-    │   ├── api/auth_api.dart
-    │   ├── dto/auth_dtos.dart        # contratos exactos de api-docs.json
-    │   └── repositories/auth_repository_impl.dart
+    │   ├── api/ (recorridos_api.dart, flota_api.dart)
+    │   ├── dto/ (recorrido_dtos.dart, flota_dtos.dart)
+    │   ├── local/outbox_store.dart           # cola FIFO cifrada (Fase 2.5)
+    │   └── repositories/ (recorridos_repository_impl.dart, flota_repository_impl.dart)
     └── presentation/
-        ├── controllers/ (session_controller + session_state,
-        │                 login_controller, change_password_controller)
-        ├── screens/ (splash, login, home, profile, change_password)
-        └── widgets/ (app_text_field, flow_banner)
+        ├── controllers/ (recorridos_list_controller, recorrido_form_controller,
+        │                 recorrido_detail_controller, outbox_controller)
+        └── screens/ (recorridos_list_screen, recorrido_form_screen,
+                      recorrido_detail_screen)
 ```
 
 ## Puesta en marcha
@@ -94,6 +128,20 @@ flutter run --dart-define=API_BASE_URL=https://staging.tu-dominio.cu --dart-defi
   OpenAPI (Fase 0.4) se sustituyen sin cambiar el resto.
 - **Logout en dos capas**: el repositorio limpia el token en `finally`
   (garantía local) aunque el backend falle.
+- **R7 (odómetro)**: el cliente nunca calcula `odometroInicial`/`consumo`;
+  los muestra del servidor. Sólo advierte (`OdometroRegla`) cuando los km
+  declarados son atípicos (≥1000 km o ≥ odómetro del vehículo).
+- **R5 (paginación)**: `PageParams` encapsula `page/perPage/sort/sortOrder`;
+  la lista pide `sort=fecha&sortOrder=DESC` (RF-02.4).
+- **R9 (pre-selección de vehículo para chofer)**: la API no expone el vínculo
+  user↔chofer; si la flota visible tiene un único vehículo activo se
+  pre-selecciona; si no, selección manual. Punto único a ajustar en
+  `RecorridoFormController.iniciar()` cuando el backend publique el mapeo.
+- **Outbox v1 (Fase 2.5)**: sólo la CREACIÓN se encola al fallar por red;
+  la cola se persiste cifrada (secure_storage) y se sincroniza FIFO al
+  refrescar la lista con red o con «Sincronizar» del banner. Cuando llegue
+  Drift (Fase 6) la tabla `outbox` sustituye al store sin cambiar la interfaz.
+  Edición/borrado offline llegan con la Fase 6 (conflictos last-write-wins).
 
 ## Cómo probar (checklist de Gate F1)
 
@@ -108,3 +156,23 @@ flutter run --dart-define=API_BASE_URL=https://staging.tu-dominio.cu --dart-defi
    401 → vuelve a Login con banner «Tu sesión ha expirado».
 8. Logout → limpieza de token → Login con banner «Sesión cerrada
    correctamente».
+
+## Cómo probar RF-02 (checklist de Gate F2)
+
+1. Login → Home → módulo **Recorridos** → lista con recorridos (fecha DESC).
+2. «Nuevo» → formulario: elegir vehículo (ver odómetro actual), chofer,
+   fecha (el selector no permite fechas futuras) y km.
+3. Validaciones: km vacío/0 → error inline; chip >50 o lugar >100 → error;
+   km ≥1000 o ≥ odómetro → advertencia ámbar no bloqueante (R7).
+4. Guardar → SnackBar y el recorrido aparece primero en la lista.
+5. Abrir abastecimiento: litros 0 con importe → error de coherencia;
+   seleccionar tarjeta (saldo visible) → guardar con abastecimiento.
+6. Detalle → sección «Calculados por el servidor» (odómetro inicial,
+   combustible, consumo) y auditoría (creadoPor, fechas).
+7. Editar → precarga todo; guardar → PUT y lista actualizada.
+8. Eliminar (sólo admin/jefe) → confirmación → DELETE → desaparece de la lista.
+9. Filtro por vehículo → la traza muestra `GET /api/recorridos/vehiculo/{id}`;
+   búsqueda por matrícula/chofer filtra en cliente.
+10. **Gate F2 offline**: con el servidor caído, crear 2–3 recorridos →
+    badge «Pendiente de sync» en la lista; reconectar → «Sincronizar» →
+    cola FIFO enviada en orden → badges desaparecen y el backend los tiene.

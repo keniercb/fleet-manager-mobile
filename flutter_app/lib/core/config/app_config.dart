@@ -35,4 +35,10 @@ class AppConfig {
   static const String logoutPath = '/api/auth/logout';
   static const String mePath = '/api/auth/me';
   static const String changePasswordPath = '/api/auth/cambiar-password';
+
+  // Endpoints del módulo de recorridos (api-docs.json → tag "Trips", RF-02).
+  static const String recorridosPath = '/api/recorridos';
+  static const String vehiculosPath = '/api/vehiculos';
+  static const String choferesPath = '/api/choferes';
+  static const String tarjetasPath = '/api/tarjetas-combustible';
 }

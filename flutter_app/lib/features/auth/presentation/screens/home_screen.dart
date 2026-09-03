@@ -1,8 +1,8 @@
-/// Pantalla Home — placeholder de la Fase 2 (Recorridos).
+/// Pantalla Home — hub de módulos.
 ///
-/// Para RF-01 muestra: usuario autenticado, capacidades por rol y acceso
-/// al perfil. Los módulos de la lista quedan deshabilitados según las
-/// capacidades (RF-01.3) y se implementarán en fases posteriores.
+/// RF-01: usuario autenticado, capacidades por rol y acceso al perfil.
+/// RF-02 (Fase 2): módulo Recorridos habilitado. Vehículos/Choferes
+/// (Fase 3) y Reportes (Fase 4) llegan en las siguientes fases.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -107,7 +107,9 @@ class HomeScreen extends ConsumerWidget {
               title: 'Recorridos',
               subtitle: 'Registrar kilómetros y abastecimientos',
               enabled: auth.capabilities.canRegisterTrips,
-              onTap: null, // Fase 2
+              onTap: auth.capabilities.canRegisterTrips
+                  ? () => context.push('/recorridos') // RF-02 ✓ Fase 2
+                  : null,
             ),
             _ModuleTile(
               icon: Icons.directions_car_rounded,

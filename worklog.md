@@ -61,3 +61,36 @@ Stage Summary:
 - Repo completo publicado en GitHub: 4 commits en main, 132+ archivos (flutter_app/ RF-01 completo, plan-app-registro-recorridos-flutter.md, demo web RF-01, api-docs.json, worklog).
 - Remote origin apuntando a fleet-manager-mobile con upstream tracking activo.
 - Recomendación transmitida al usuario: revocar el PAT tras confirmar la subida.
+---
+Task ID: 2-a
+Agent: Z.ai Code (main)
+Task: Implementar RF-02 · Registro de recorridos en el módulo Flutter (Fase 2 del plan: 2.2-2.6).
+
+Work Log:
+- Core: PageParams (R5, page/perPage/sort/sortOrder encapsulados), validadores RF-02.3 (kilometros≥1, litros≥0, importe, maxLen chip 50 / lugar 100, fechaNoFutura), AppConfig +paths recorridos/vehiculos/choferes/tarjetas.
+- Dominio recorridos: entidades PageResult<T>, Recorrido (+RecorridoInput con toJson contrato exacto), Vehiculo/Chofer/TarjetaCombustible; repos contratos RecorridosRepository (listar/listarPorVehiculo/obtener/crear/actualizar/eliminar) y FlotaRepository (solo lectura); use cases Listar/Obtener/Crear/Actualizar/Eliminar/CargarDatosFormulario; OdometroRegla (advertencia R7 pura: km≥1000 o km≥odómetro).
+- Datos: RecorridosApi + FlotaApi (Dio, query params R5), DTOs tolerantes (RecorridoDto/parsePage Spring, Vehiculo/Chofer/Tarjeta DTOs), repos impl con mapDioError; outbox_store (cola FIFO cifrada en flutter_secure_storage, PendingRecorrido serializado).
+- Presentación: OutboxController (SyncManager v1: enqueue/devuelve localId, discard, updateDraft, syncAll FIFO con parada en fallo), RecorridosListController (paginación infinita perPage 10, refresh con sync previo, filtro vehículo, búsqueda client-side, estados loading/refreshing/error conservando datos), RecorridoFormController (validación RF-02.3, advertencia odómetro live, crear/actualizar, creación sin red → outbox con RecorridoEncolado), RecorridoDetailController (family por id, eliminar con confirmación UI).
+- Screens: RecorridosListScreen (banner outbox con Sincronizar, filtro dropdown, búsqueda, tiles pendientes con badge, empty/error/retry, FAB Nuevo), RecorridoFormScreen (selectores vehículo con odómetro/chofer dependiente/fecha ≤ hoy con showDatePicker, km con hint odómetro esperado + advertencia ámbar, bloque abastecimiento con switch: litros/chip/lugar/tarjeta con saldo/importe), RecorridoDetailScreen (sección «Calculados por el servidor», abastecimiento, auditoría, Editar/Eliminar según canManageFleet).
+- Integración: router +4 rutas (/recorridos, /nuevo, /:id, /:id/editar) bajo guard de sesión; Home tile Recorridos habilitado; README con secciones RF-02 + checklist Gate F2; pubspec 0.2.0+2.
+- Correcciones estáticas: null-safety en Validators.importe, imports faltantes (page_params en recorridos_api), imports no usados, FutureRef→Ref.
+
+Stage Summary:
+- RF-02.1..RF-02.7 + outbox v1 (Fase 2.5) implementados en 20 ficheros nuevos bajo lib/features/recorridos/ (sin tocar auth salvo Home tile).
+- Pendiente Fase 6: cache Drift (2.1 sustituye memoización de sesión), outbox persistente en tabla Drift, edición/borrado offline, conectividad reactiva (connectivity_plus).
+---
+Task ID: 2-b
+Agent: frontend-styling-expert (subagente) + Z.ai Code (main, verificación y fix)
+Task: Extender la demo web Next.js con el módulo RF-02 (lista, formulario, detalle, outbox Gate F2, spec panel, header/footer).
+
+Work Log:
+- Subagente creó src/components/rf02/mock-db.ts (BD simulada persistida en localStorage: 3 vehículos, 3 choferes, 3 tarjetas, 8 recorridos seed, outbox) y src/components/rf02/recorridos-module.tsx (pantallas recorridos/recorridoForm/recorridoDetail con trazas API exactas: page=0&perPage=5&sort=fecha&sortOrder=DESC, GET catálogos ×3, POST/PUT/DELETE, SyncManager FIFO con recálculo de odómetro/consumo).
+- Integración en phone-demo.tsx: nuevos screens en la máquina de estados, tile Recorridos navegable, reset de datos RF-02, banner y toasts.
+- spec-panel.tsx ampliado con RF-02 (requisitos, Gate F2, outbox); page.tsx actualizado a «RF-02 · Registro de recorridos — Fase 2» con caja «Cómo evaluar RF-02».
+- Z.ai (verificación Agent Browser): login → lista fecha DESC (5+paginación) ✓; validaciones inline vacío ✓; crear online → POST 200 con odometroInicial R7 ✓; detalle con calculados (45,210 km / 45.00 L) y auditoría ✓; DELETE con confirmación (R6, solo admin) ✓; chofer sin botón Eliminar ✓; Gate F2: offline → outbox + badge, reconectar → SyncManager FIFO (odómetro 96,750 → 96,960) ✓.
+- Fix Z.ai: condición transitoria post-reconexión dejaba la lista en estado error → añadida auto-recuperación en RecorridosListView (reintento único 1.5 s tras offline→online, patrón timer-callback para eslint). Re-verificado: flujo completo sin clics manuales.
+- Lint 0 errores; sin errores de consola (solo warnings cosméticos Radix controlled/uncontrolled); móvil 390px OK; footer pegado (stuck:true a 844px).
+
+Stage Summary:
+- Demo web evalúa RF-02 de punta a punta incluyendo Gate F2 (registrar sin red → sync automática).
+- Archivos: src/components/rf02/{mock-db.ts, recorridos-module.tsx}, src/components/rf01/{phone-demo.tsx, spec-panel.tsx}, src/app/page.tsx.

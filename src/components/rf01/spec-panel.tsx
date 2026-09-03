@@ -9,7 +9,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CheckCircle2, FileCode2, ShieldAlert } from "lucide-react";
+import { CheckCircle2, FileCode2, RefreshCw, ShieldAlert } from "lucide-react";
 
 interface ReqItem {
   id: string;
@@ -94,54 +94,134 @@ const GATE_CHECKS = [
   "Logout → token limpio → Login con banner de éxito",
 ];
 
+// ---------------------------------------------------------------------------
+// RF-02 · Registro de recorridos (Fase 2 — núcleo del negocio)
+// ---------------------------------------------------------------------------
+
+const RF02_REQUIREMENTS: ReqItem[] = [
+  {
+    id: "RF-02.1",
+    title: "Formulario de registro",
+    detail:
+      "Vehículo (preseleccionado si el chofer tiene vehículo asignado, selectores dependientes vehículo→chofer), fecha con default hoy y máx. hoy, kilómetros ≥ 1 con hint vivo «Odómetro tras registrar: X km».",
+    files: ["recorrido_form.dart", "recorrido_controller.dart", "usecases/registrar_recorrido.dart"],
+    endpoint: "POST /api/recorridos",
+  },
+  {
+    id: "RF-02.2",
+    title: "Abastecimiento opcional",
+    detail:
+      "Bloque colapsable: litros ≥ 0, nº de chip (≤ 50), lugar (≤ 100), tarjeta de combustible con saldo visible en el selector e importe ≥ 0. Saldo insuficiente → advertencia suave que no bloquea.",
+    files: ["recorrido_request.dart", "tarjeta_selector.dart"],
+  },
+  {
+    id: "RF-02.3",
+    title: "Validaciones de cliente",
+    detail:
+      "km ≥ 1 entero, litros ≥ 0, fecha ≤ hoy, longitudes máximas; advertencia ámbar si los km difieren fuertemente del odómetro esperado (km ≥ 1000 o km ≥ odómetro) porque el servidor valida la continuidad (R7).",
+    files: ["validators.dart", "registrar_recorrido.dart"],
+  },
+  {
+    id: "RF-02.4",
+    title: "Listado paginado",
+    detail:
+      "GET paginado 5/pág con sort=fecha&sortOrder=DESC, «Cargar más» infinito, refresh (pull-to-refresh), skeletons, estado vacío y error con Reintentar.",
+    files: ["recorridos_screen.dart", "recorridos_repository.dart"],
+    endpoint: "GET /api/recorridos?page=0&perPage=5&sort=fecha&sortOrder=DESC",
+  },
+  {
+    id: "RF-02.5",
+    title: "Detalle con datos calculados",
+    detail:
+      "Ficha completa: odómetro inicial, combustible inicial y consumo (km/L, solo con abastecimiento) calculados por el servidor; bloque de abastecimiento y auditoría (creadoPor, fechaCreación).",
+    files: ["recorrido_detail_screen.dart", "recorrido_response.dart"],
+  },
+  {
+    id: "RF-02.6",
+    title: "Edición y borrado por rol",
+    detail:
+      "Editar → PUT precargado. Eliminar → confirmación (AlertDialog) y borrado lógico activo=false (R6: cuerpo vacío = éxito). CHOFER: crea/edita pero no elimina; ADMIN/JEFE: todo.",
+    files: ["usecases/editar_recorrido.dart", "usecases/eliminar_recorrido.dart"],
+    endpoint: "PUT /api/recorridos/{id} · DELETE /api/recorridos/{id}",
+  },
+  {
+    id: "RF-02.7",
+    title: "Filtro por vehículo y búsqueda",
+    detail:
+      "Filtro por vehículo con endpoint dedicado y búsqueda rápida por matrícula/chofer aplicada client-side sobre lo cargado.",
+    files: ["recorridos_screen.dart", "usecases/listar_por_vehiculo.dart"],
+    endpoint: "GET /api/recorridos/vehiculo/{id}?page=0&perPage=5&sort=fecha&sortOrder=DESC",
+  },
+];
+
+const GATE_F2_CHECKS = [
+  "Lista paginada 5/pág ordenada por fecha DESC (query params visibles en la traza)",
+  "Filtro por vehículo usa /recorridos/vehiculo/{id}; búsqueda filtra lo cargado",
+  "Formulario valida km ≥ 1, fecha ≤ hoy y longitudes; hint de odómetro en vivo",
+  "Abastecimiento opcional con tarjeta y saldo visible; saldo insuficiente advierte sin bloquear",
+  "Detalle muestra odómetro inicial, combustible y consumo calculados por el servidor",
+  "CHOFER puede crear/editar pero no ve el botón Eliminar (RF-02.6)",
+  "Sin red: creación → outbox FIFO con badge «Pendiente de sync» e id local-",
+  "Reconexión: sync automático ~1,2 s → odómetro y consumo recalculados, toast final",
+];
+
+function ReqGrid({ items }: { items: ReqItem[] }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      {items.map((r) => (
+        <Card key={r.id} className="gap-3 py-4">
+          <CardHeader className="px-4">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm">
+                <span className="font-mono text-teal-700 dark:text-teal-400">{r.id}</span>{" "}
+                · {r.title}
+              </CardTitle>
+              <Badge className="shrink-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                <CheckCircle2 className="mr-1 h-3 w-3" /> Implementado
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3 px-4">
+            <p className="text-xs leading-relaxed text-muted-foreground">{r.detail}</p>
+            {r.endpoint && (
+              <p className="rounded-md bg-muted px-2 py-1 font-mono text-[11px]">{r.endpoint}</p>
+            )}
+            <div className="flex flex-wrap gap-1.5">
+              {r.files.map((f) => (
+                <span
+                  key={f}
+                  className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
+                >
+                  <FileCode2 className="h-3 w-3" />
+                  {f}
+                </span>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 export function Rf01SpecPanel() {
   const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [checkedF2, setCheckedF2] = useState<Set<number>>(new Set());
 
-  function toggle(i: number) {
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (next.has(i)) next.delete(i);
-      else next.add(i);
-      return next;
-    });
+  function toggle(set: Set<number>, setter: (s: Set<number>) => void, i: number) {
+    const next = new Set(set);
+    if (next.has(i)) next.delete(i);
+    else next.add(i);
+    setter(next);
   }
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2">
-        {REQUIREMENTS.map((r) => (
-          <Card key={r.id} className="gap-3 py-4">
-            <CardHeader className="px-4">
-              <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-sm">
-                  <span className="font-mono text-teal-700 dark:text-teal-400">{r.id}</span>{" "}
-                  · {r.title}
-                </CardTitle>
-                <Badge className="shrink-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-3 w-3" /> Implementado
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3 px-4">
-              <p className="text-xs leading-relaxed text-muted-foreground">{r.detail}</p>
-              {r.endpoint && (
-                <p className="rounded-md bg-muted px-2 py-1 font-mono text-[11px]">{r.endpoint}</p>
-              )}
-              <div className="flex flex-wrap gap-1.5">
-                {r.files.map((f) => (
-                  <span
-                    key={f}
-                    className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
-                  >
-                    <FileCode2 className="h-3 w-3" />
-                    {f}
-                  </span>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <h3 className="flex items-center gap-2 text-sm font-bold">
+        <span className="rounded-md bg-teal-700 px-2 py-1 font-mono text-[11px] text-white">Fase 1</span>
+        RF-01 · Autenticación y sesión
+      </h3>
+      <ReqGrid items={REQUIREMENTS} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="py-4">
@@ -172,7 +252,7 @@ export function Rf01SpecPanel() {
               {GATE_CHECKS.map((c, i) => (
                 <li key={c}>
                   <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed">
-                    <Checkbox checked={checked.has(i)} onCheckedChange={() => toggle(i)} className="mt-0.5" />
+                    <Checkbox checked={checked.has(i)} onCheckedChange={() => toggle(checked, setChecked, i)} className="mt-0.5" />
                     <span className={checked.has(i) ? "text-muted-foreground line-through" : ""}>{c}</span>
                   </label>
                 </li>
@@ -181,6 +261,76 @@ export function Rf01SpecPanel() {
             <p className="mt-3 text-[11px] text-muted-foreground">
               {checked.size}/{GATE_CHECKS.length} verificados — puedes probar cada punto en la
               demo interactiva.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ---------------------------------------------------------------- */}
+      <div className="mt-8 border-t pt-6">
+        <h3 className="flex items-center gap-2 text-sm font-bold">
+          <span className="rounded-md bg-teal-700 px-2 py-1 font-mono text-[11px] text-white">Fase 2</span>
+          RF-02 · Registro de recorridos — núcleo del negocio
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          La demo replica el Gate F2 completo: CRUD de recorridos, abastecimiento opcional, datos
+          calculados por el servidor y outbox offline con SyncManager v1.
+        </p>
+      </div>
+
+      <ReqGrid items={RF02_REQUIREMENTS} />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="py-4">
+          <CardHeader className="px-4">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <RefreshCw className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              Gate F2 — flujo end-to-end offline (outbox FIFO)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 px-4 text-xs leading-relaxed text-muted-foreground">
+            <p>
+              <span className="font-semibold text-foreground">1.</span> Activa «Servidor caído» y
+              registra 2–3 recorridos: la traza muestra{" "}
+              <span className="font-mono">POST /api/recorridos → 0 · outbox local (FIFO)</span> y
+              cada item aparece con badge ámbar «Pendiente de sync» e id{" "}
+              <span className="font-mono">local-N</span>.
+            </p>
+            <p>
+              <span className="font-semibold text-foreground">2.</span> Los drafts se pueden editar
+              o descartar sin red (solo cola local). Eliminar un recorrido ya sincronizado sin red
+              da error con Reintentar: en v1 solo la CREACIÓN se encola.
+            </p>
+            <p>
+              <span className="font-semibold text-foreground">3.</span> Apaga «Servidor caído»: el
+              SyncManager vacía la cola en ~1,2 s, el servidor recalcula odómetro y consumo, el
+              badge desaparece y se emite el toast final.
+            </p>
+            <p className="rounded-lg bg-muted p-2 font-mono text-[10px]">
+              rf02_db + rf02_outbox en localStorage — sobreviven recargas; el botón «Reiniciar
+              datos demo» restaura la semilla de la BD.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="py-4">
+          <CardHeader className="px-4">
+            <CardTitle className="text-sm">Gate F2 — checklist de aceptación</CardTitle>
+          </CardHeader>
+          <CardContent className="px-4">
+            <ul className="space-y-2.5">
+              {GATE_F2_CHECKS.map((c, i) => (
+                <li key={c}>
+                  <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed">
+                    <Checkbox checked={checkedF2.has(i)} onCheckedChange={() => toggle(checkedF2, setCheckedF2, i)} className="mt-0.5" />
+                    <span className={checkedF2.has(i) ? "text-muted-foreground line-through" : ""}>{c}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              {checkedF2.size}/{GATE_F2_CHECKS.length} verificados — pruébalos en la demo
+              interactiva (pestaña «Demo interactiva»).
             </p>
           </CardContent>
         </Card>

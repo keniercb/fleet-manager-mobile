@@ -19,6 +19,9 @@ import 'features/auth/presentation/screens/home_screen.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/auth/presentation/screens/profile_screen.dart';
 import 'features/auth/presentation/screens/splash_screen.dart';
+import 'features/recorridos/presentation/screens/recorrido_detail_screen.dart';
+import 'features/recorridos/presentation/screens/recorrido_form_screen.dart';
+import 'features/recorridos/presentation/screens/recorridos_list_screen.dart';
 
 final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
   // Notifica a go_router cada transición de sesión.
@@ -68,6 +71,30 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       GoRoute(
         path: '/perfil/cambiar-password',
         builder: (_, __) => const ChangePasswordScreen(),
+      ),
+
+      // ---------------- RF-02 · Recorridos ----------------
+      // Todas quedan cubiertas por el guard global de sesión: sólo se
+      // alcanzan con SessionAuthenticated (redirect arriba).
+      GoRoute(
+        path: '/recorridos',
+        builder: (_, __) => const RecorridosListScreen(),
+      ),
+      GoRoute(
+        path: '/recorridos/nuevo',
+        builder: (_, __) => const RecorridoFormScreen(),
+      ),
+      GoRoute(
+        path: '/recorridos/:id',
+        builder: (_, GoRouterState state) => RecorridoDetailScreen(
+          id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
+        ),
+      ),
+      GoRoute(
+        path: '/recorridos/:id/editar',
+        builder: (_, GoRouterState state) => RecorridoFormScreen(
+          editarId: int.tryParse(state.pathParameters['id'] ?? ''),
+        ),
       ),
     ],
   );

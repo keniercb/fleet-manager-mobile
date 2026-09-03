@@ -17,6 +17,8 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { RecorridosProvider, RecorridosScreen } from "@/components/rf02/recorridos-module";
+import { resetRecorridosDb, type RecorridoId } from "@/components/rf02/mock-db";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -32,6 +34,7 @@ import {
   LockOpen,
   LogOut,
   RefreshCw,
+  RotateCcw,
   Route,
   Truck,
   User,
@@ -43,7 +46,15 @@ import {
 // Modelo (espejo de las entidades Dart)
 // ---------------------------------------------------------------------------
 
-type Screen = "splash" | "login" | "home" | "profile" | "changePassword";
+type Screen =
+  | "splash"
+  | "login"
+  | "home"
+  | "profile"
+  | "changePassword"
+  | "recorridos"
+  | "recorridoForm"
+  | "recorridoDetail";
 type Reason = "initial" | "loggedOut" | "expired";
 type SessionKind =
   | "unknown"
@@ -157,6 +168,9 @@ export function Rf01PhoneDemo() {
     msg: string;
     kind: "warning" | "success" | "info";
   } | null>(null);
+  // RF-02: id del recorrido seleccionado (detalle/edición) + señal de reseed.
+  const [rf02Id, setRf02Id] = useState<RecorridoId | null>(null);
+  const [rf02Reset, setRf02Reset] = useState(0);
 
   const logIdRef = useRef(1);
   const offlineRef = useRef(false);
@@ -398,18 +412,39 @@ export function Rf01PhoneDemo() {
 
   const resetDemo = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
+    resetRecorridosDb();
     setToken(null);
     setLogs([]);
     setBanner(null);
     setOffline(false);
     setSession({ kind: "unknown" });
     setScreen("splash");
+    setRf02Id(null);
+    setRf02Reset((v) => v + 1);
     setTimeout(() => void bootstrap(), 300);
   }, [bootstrap, setOffline]);
+
+  // Reseed solo de la "BD" de recorridos (RF-02), sin tocar la sesión RF-01.
+  const resetRecorridosData = useCallback(() => {
+    resetRecorridosDb();
+    setRf02Id(null);
+    setRf02Reset((v) => v + 1);
+    toast({
+      title: "Datos demo de recorridos restablecidos",
+      description: "Semilla: 3 vehículos · 3 choferes · 3 tarjetas · 8 recorridos · outbox vacío",
+    });
+  }, [toast]);
 
   const authenticated = session.kind === "authenticated";
 
   return (
+    <RecorridosProvider
+      offline={offline}
+      offlineRef={offlineRef}
+      pushLog={pushLog}
+      user={authenticated ? session.user ?? null : null}
+      resetSignal={rf02Reset}
+    >
     <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
       {/* ---------------- Teléfono ---------------- */}
       <div className="mx-auto w-full max-w-[380px]">
@@ -449,6 +484,10 @@ export function Rf01PhoneDemo() {
                   setScreen("profile");
                   setBanner(null);
                 }}
+                onOpenRecorridos={() => {
+                  setScreen("recorridos");
+                  setBanner(null);
+                }}
               />
             )}
             {screen === "profile" && authenticated && (
@@ -477,6 +516,24 @@ export function Rf01PhoneDemo() {
                 onBack={() => setScreen("profile")}
               />
             )}
+            {/* RF-02 · Registro de recorridos (Fase 2) */}
+            {authenticated &&
+              (screen === "recorridos" || screen === "recorridoForm" || screen === "recorridoDetail") && (
+                <RecorridosScreen
+                  screen={screen}
+                  selectedId={rf02Id}
+                  onBackHome={() => setScreen("home")}
+                  onBackToList={() => setScreen("recorridos")}
+                  onOpenDetail={(id) => {
+                    setRf02Id(id);
+                    setScreen("recorridoDetail");
+                  }}
+                  onOpenForm={(id) => {
+                    setRf02Id(id);
+                    setScreen("recorridoForm");
+                  }}
+                />
+              )}
           </div>
         </div>
       </div>
@@ -546,6 +603,14 @@ export function Rf01PhoneDemo() {
               <Button size="sm" variant="outline" onClick={resetDemo}>
                 <RefreshCw className="mr-1 h-3.5 w-3.5" /> Reiniciar demo
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={resetRecorridosData}
+                title="Reseed de la BD demo de recorridos (RF-02): vehículos, choferes, tarjetas, recorridos y outbox"
+              >
+                <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reiniciar datos demo
+              </Button>
             </div>
             <p className="text-xs text-muted-foreground">
               Credenciales de demo:{" "}
@@ -610,6 +675,7 @@ export function Rf01PhoneDemo() {
         </div>
       </div>
     </div>
+    </RecorridosProvider>
   );
 }
 
@@ -789,14 +855,30 @@ function HomeView({
   user,
   onLogout,
   onProfile,
+  onOpenRecorridos,
 }: {
   user: MockUser;
   onLogout: () => void;
   onProfile: () => void;
+  onOpenRecorridos: () => void;
 }) {
   const caps = capabilities(user);
-  const modules = [
-    { icon: Route, title: "Recorridos", sub: "Registrar km y abastecimientos", enabled: caps.trips },
+  const modules: {
+    icon: typeof Route;
+    title: string;
+    sub: string;
+    enabled: boolean;
+    onClick?: () => void;
+    badge?: string;
+  }[] = [
+    {
+      icon: Route,
+      title: "Recorridos",
+      sub: "Registrar km y abastecimientos",
+      enabled: caps.trips,
+      onClick: onOpenRecorridos,
+      badge: "Fase 2",
+    },
     { icon: Truck, title: "Vehículos", sub: "Flota, odómetro y mantenimiento", enabled: caps.fleet },
     { icon: Users, title: "Choferes", sub: "Personal y licencias", enabled: caps.fleet },
     { icon: KeyRound, title: "Reportes", sub: "Consumo, abastecimiento, dashboard", enabled: caps.reports },
@@ -832,26 +914,47 @@ function HomeView({
           </div>
         </div>
 
-        <p className="text-xs font-medium text-muted-foreground">Módulos (Fase 2+)</p>
-        {modules.map((m) => (
-          <div
-            key={m.title}
-            className={`flex items-center gap-3 rounded-xl border p-3 ${
-              m.enabled ? "bg-card" : "opacity-50"
-            }`}
-          >
-            <m.icon className={`h-5 w-5 ${m.enabled ? "text-teal-700 dark:text-teal-400" : "text-muted-foreground"}`} />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">{m.title}</p>
-              <p className="truncate text-xs text-muted-foreground">{m.sub}</p>
+        <p className="text-xs font-medium text-muted-foreground">Módulos</p>
+        {modules.map((m) => {
+          const enabledWithNav = m.enabled && m.onClick != null;
+          const inner = (
+            <>
+              <m.icon className={`h-5 w-5 ${m.enabled ? "text-teal-700 dark:text-teal-400" : "text-muted-foreground"}`} />
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-1.5 text-sm font-medium">
+                  {m.title}
+                  {m.badge && enabledWithNav && (
+                    <span className="rounded bg-teal-700/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-teal-800 dark:text-teal-300">
+                      {m.badge}
+                    </span>
+                  )}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">{m.sub}</p>
+              </div>
+              {m.enabled ? (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+            </>
+          );
+          const shell = `flex items-center gap-3 rounded-xl border p-3 ${
+            m.enabled ? "bg-card" : "opacity-50"
+          }`;
+          return enabledWithNav ? (
+            <button
+              key={m.title}
+              onClick={m.onClick}
+              className={`${shell} w-full text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600`}
+            >
+              {inner}
+            </button>
+          ) : (
+            <div key={m.title} className={shell}>
+              {inner}
             </div>
-            {m.enabled ? (
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-            )}
-          </div>
-        ))}
+          );
+        })}
 
         <Button variant="outline" size="sm" className="w-full" onClick={onProfile}>
           <User className="mr-1 h-4 w-4" /> Ver mi perfil

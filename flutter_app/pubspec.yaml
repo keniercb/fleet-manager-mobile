@@ -1,10 +1,11 @@
 name: registro_recorridos
 description: >-
   APK Registro de Recorridos de Vehículos.
-  Fase 1 — RF-01 Autenticación y sesión (login JWT, bootstrap /auth/me,
-  logout, cambio de contraseña, manejo de sesión expirada).
+  Fase 2 — RF-02 Registro de recorridos (lista paginada, formulario con
+  abastecimiento opcional, detalle con calculados, edición/borrado,
+  outbox offline v1). Incluye RF-01 Autenticación y sesión.
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.2.0+2
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
